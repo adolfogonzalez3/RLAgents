@@ -16,9 +16,9 @@ class DQNAgent(BaseDQNet):
 
     def __init__(self, model, memory_size=1024,
                 batch_size=32, gamma=0.99, epsilon=0.1,
-                K=1, name='Agent', replayType='simple', with_target=True):
+                name='Agent', replayType='simple', with_target=True):
         '''Create Agent from model description file.'''
-        super().__init__(epsilon, gamma, K, replayType, memory_size)
+        super().__init__(epsilon, gamma, replayType, memory_size)
         self.batch_size = batch_size
         self.model = FFNetAsync(model)
         self.with_target = with_target
@@ -73,3 +73,16 @@ class DQNAgent(BaseDQNet):
         model.predict_on_batch(state)
         x = model.collect()
         return x
+        
+    def update_state(self, state):
+        '''Create a new state given input.'''
+        reshaped_state = state.reshape((1,) + state.shape + (1,))
+        return np.append(reshaped_state, self.current_state[...,0:-1], axis=3)
+        
+    def initialize(self, state, action):
+        new_state = np.stack((state, state, state, state), axis=-1)
+        single_state = new_state.reshape((1,) + new_state.shape)
+        self.current_state = single_state
+        self.current_action = action
+        self.terminal = False 
+        return True

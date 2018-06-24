@@ -1,7 +1,6 @@
 
 from abc import ABC, abstractmethod
 import numpy as np
-import random
 
 from itertools import count
 
@@ -11,10 +10,9 @@ from RLAgents.Algorithms.DQNFunctions import Q_function
 
 class BaseDQNet(ABC):
 
-    def __init__(self, epsilon, gamma, K, replayType='simple', replaySize=1024):
+    def __init__(self, epsilon, gamma, replayType='simple', replaySize=1024):
         self.epsilon = epsilon
         self.gamma = gamma
-        self.K = K
         self.clock = 0
         if replayType == 'simple':
             self.replayMemory = SimpleReplay(replaySize)
@@ -25,12 +23,18 @@ class BaseDQNet(ABC):
             self.epsilon = (epsilon for _ in count())
         
         self.replayType = replayType
-        
-    def initialize(self, current_state, current_action):
-        self.current_state = current_state
-        self.current_action = current_action
-        self.terminal = False 
-        
+    
+    def __choose(self, epsilon):
+        action = np.zeros(self.current_action.shape)
+        if np.random.random() <= epsilon:
+            index = np.random.randint(0, action.shape[-1])
+        else:
+            x = self.Qvalues(self.current_state)
+            index = np.argmax(x)
+        action[index] = 1
+        self.current_action = action
+        return self.current_action 
+    
     def choose(self, Training=True):
         if Training is False:
             action = np.zeros(self.current_action.shape)
@@ -40,24 +44,18 @@ class BaseDQNet(ABC):
             return action
         else:
             e = next(self.epsilon)
-            if self.clock%self.K == 0:
-                return self.__choose(e)
-            else:
-                return self.current_action
+            return self.__choose(e)
         
-    def __choose(self, epsilon):
-        action = np.zeros(self.current_action.shape)
-        if random.random() <= epsilon:
-            index = random.randint(0, len(action.shape))
-        else:
-            x = self.Qvalues(self.current_state)
-            index = np.argmax(x)
-        action[index] = 1
-        self.current_action = action
-        return self.current_action
+    def act(self, **kwargs):
+        '''Alias for choose.'''
+        self.choose(**kwargs)
+    
+    def choose_random(self):
+        return self.__choose(1.0)
     
     def feedback(self, frame, reward, terminal, Training=True):
-        new_state = np.append(frame, self.current_state[...,0:-1], axis=3)
+        #new_state = np.append(frame, self.current_state[...,0:-1], axis=3)
+        new_state = self.update_state(frame)
         memory = (self.current_state, self.current_action, reward, new_state, terminal)
         if Training is True:
             if self.replayType == 'prioritized':
@@ -79,7 +77,11 @@ class BaseDQNet(ABC):
         term_batch = np.array([b[4] for b in batch])
         
         return pseq_batch, action_batch, reward_batch, seq_batch, term_batch
-        
+    
+    @abstractmethod
+    def initialize(self, state, action):
+        pass
+    
     @abstractmethod
     def Qvalues(self, state, target=False):
         pass
@@ -90,4 +92,9 @@ class BaseDQNet(ABC):
         
     @abstractmethod
     def save(self):
+        pass
+        
+    @abstractmethod    
+    def update_state(self, state):
+        '''Create a new state given input.'''
         pass
