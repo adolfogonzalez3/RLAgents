@@ -25,10 +25,10 @@ class DQNAgent(BaseDQNet):
         if with_target is True:
             self.target_model = FFNetAsync(model)
 
-    def save(self):
-        self.model.save('{}.h5'.format(self.name))
-        if with_target is True:
-            self.target_model.save('{}_target.h5'.format(self.name))
+    def save(self, name):
+        self.model.save('{}.h5'.format(name))
+        if self.with_target is True:
+            self.target_model.save('{}_target.h5'.format(name))
 
     def train(self):
         '''Train the Agent.'''
@@ -59,7 +59,7 @@ class DQNAgent(BaseDQNet):
         weights = self.model.collect()
         target_weights = self.target_model.collect()
         for i in range(len(target_weights)):
-            target_weights[i] = target_weights[i]*(0.8) + weights[i]*0.2
+            target_weights[i] = target_weights[i]*(0.99) + weights[i]*0.01
         self.target_model.set_weights(target_weights)
             
     def get_epsilon(self):

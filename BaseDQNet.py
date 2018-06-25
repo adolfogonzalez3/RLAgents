@@ -35,7 +35,7 @@ class BaseDQNet(ABC):
         self.current_action = action
         return self.current_action 
     
-    def choose(self, Training=True):
+    def choose(self, epsilon=None, Training=True):
         if Training is False:
             action = np.zeros(self.current_action.shape)
             x = self.Qvalues(self.current_state, target=True)
@@ -43,8 +43,9 @@ class BaseDQNet(ABC):
             action[index] = 1
             return action
         else:
-            e = next(self.epsilon)
-            return self.__choose(e)
+            if epsilon is None:
+                epsilon = next(self.epsilon)
+            return self.__choose(epsilon)
         
     def act(self, **kwargs):
         '''Alias for choose.'''
@@ -61,7 +62,7 @@ class BaseDQNet(ABC):
             if self.replayType == 'prioritized':
                 current_Q = np.max(self.Qvalues(self.current_state)*self.current_action)
                 T = Q_function(reward, self.gamma, self.Qvalues(new_state, target=True), False)
-                self.replayMemory.insert(memory, abs(current_Q-T))
+                self.replayMemory.insert(memory, np.power(current_Q-T, 2))
             else:
                 self.replayMemory.insert(memory)
         self.current_state = new_state
@@ -91,7 +92,7 @@ class BaseDQNet(ABC):
         pass
         
     @abstractmethod
-    def save(self):
+    def save(self, name):
         pass
         
     @abstractmethod    
