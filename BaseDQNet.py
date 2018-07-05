@@ -1,7 +1,7 @@
 
 from abc import ABC, abstractmethod
 import numpy as np
-
+import random
 from itertools import count
 
 from ReplayMemory import SimpleReplay, PrioritizedReplay
@@ -26,8 +26,8 @@ class BaseDQNet(ABC):
     
     def __choose(self, epsilon):
         action = np.zeros(self.current_action.shape)
-        if np.random.random() <= epsilon:
-            index = np.random.randint(0, action.shape[-1])
+        if random.random() <= epsilon:
+            index = random.randrange(0, action.shape[-1])
         else:
             x = self.Qvalues(self.current_state)
             index = np.argmax(x)
