@@ -14,19 +14,24 @@ class DQNAgent(BaseDQNet):
     work should be hidden behind this class.
     '''
 
-    def __init__(self, model, memory_size=1024,
-                batch_size=32, gamma=0.99, epsilon=0.1,
-                name='Agent', replayType='simple', with_target=True, previous_frames=4):
+    def __init__(self, model, replay_size=1024, batch_size=32, gamma=0.99,
+                epsilon=0.1, tau=0.0001, name='Agent', replay_type='simple',
+                with_target=True, previous_frames=4):
         '''Create Agent from model description file.'''
         super().__init__(epsilon, gamma, replayType, memory_size)
+        self.tau = tau
         self.batch_size = batch_size
-        self.model = FFNetAsync(model)
         self.with_target = with_target
         self.previous_frames = previous_frames
+        
+        self.model = FFNetAsync(model)
+        # If using a target network, create a duplicate network from the same
+        # network architecture file
         if with_target is True:
             self.target_model = FFNetAsync(model)
 
     def save(self, name):
+        '''Save the networks using the keras save function.'''
         self.model.save('{}.h5'.format(name))
         if self.with_target is True:
             self.target_model.save('{}_target.h5'.format(name))
@@ -35,11 +40,13 @@ class DQNAgent(BaseDQNet):
         '''Train the Agent.'''
         pseq, actions, rewards, seq, terms = self.batch(self.batch_size)
         
+        # If not using a target network, use the online network instead.
         if self.with_target is True:
             target_model = self.target_model
         else:
             target_model = self.model
         
+        # Handles the predictions asynchronously
         target_model.predict_on_batch(seq)
         self.model.predict_on_batch(pseq)
         
@@ -50,23 +57,27 @@ class DQNAgent(BaseDQNet):
         
         self.model.train_on_batch(pseq, newQ)
         
+        # If using a target network, update the weights of the target using the
+        # online network's weights.
         if self.with_target is True:
             self.update_weights()
 
     def update_weights(self):
+        '''Update the target network using the online network's weights.'''
         self.model.get_weights()
         self.target_model.get_weights()
     
         weights = self.model.collect()
         target_weights = self.target_model.collect()
         for i in range(len(target_weights)):
-            target_weights[i] = target_weights[i]*(0.99) + weights[i]*0.01
+            target_weights[i] = target_weights[i]*(1-self.tau) + weights[i]*self.tau
         self.target_model.set_weights(target_weights)
-            
-    def get_epsilon(self):
-        return next(self.epsilon)
         
     def Qvalues(self, state, target=False):
+        '''Return the Q values for the given state.
+        
+        If target is True then use the target network to predict the Q values.
+        '''
         if target is True and self.with_target is True:
             model = self.target_model
         else:
@@ -76,13 +87,26 @@ class DQNAgent(BaseDQNet):
         return x
         
     def update_state(self, state):
-        '''Create a new state given input.'''
+        '''Create a new state given input.
+        
+        First reshapes the state so that it may appended.
+        
+        The shape is (1, width, height, number of states).
+        
+        Currently casting the new state as float 16 to save space while maintaining
+        compatibility with different feature formats ( catergorical, RGB ).
+        '''
         reshaped_state = state.reshape((1,) + state.shape + (1,))
-        return np.append(reshaped_state, self.current_state[...,0:-1], axis=3).astype(np.int8)
+        return np.append(reshaped_state, self.current_state[...,0:-1], axis=-1).astype(np.int8)
         
     def initialize(self, state, action):
+        '''Initialize the agent with state and action.'''
+        
+        # Stacks the agents along a new axis.
         stacked_states = [state for _ in range(self.previous_frames)]
         new_state = np.stack(stacked_states, axis=-1)
+        
+        # Reshaped state shape is (1, width, height, number of prior states)
         single_state = new_state.reshape((1,) + new_state.shape)
         self.current_state = single_state
         self.current_action = action
