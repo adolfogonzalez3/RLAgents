@@ -38,7 +38,7 @@ class DQNAgent(BaseDQNet):
 
     def train(self):
         '''Train the Agent.'''
-        pseq, actions, rewards, seq, terms = self.batch(self.batch_size)
+        prev_state, actions, rewards, next_state, terms = self.batch(self.batch_size)
         
         # If not using a target network, use the online network instead.
         if self.with_target is True:
@@ -47,15 +47,19 @@ class DQNAgent(BaseDQNet):
             target_model = self.model
         
         # Handles the predictions asynchronously
-        target_model.predict_on_batch(seq)
-        self.model.predict_on_batch(pseq)
+        target_model.predict_on_batch(next_state)
+        self.model.predict_on_batch(prev_state)
         
-        nextQ = target_model.collect()
-        currentQ = self.model.collect()
+        next_Qvalues = target_model.collect()
+        current_Qvalues = self.model.collect()
         
-        newQ = Q_update(currentQ, actions, rewards, self.gamma, nextQ, terms)
+        # Updates the Q value based on current state given the actions
+        # Q_online(s_t, a) = r + gamma*Q_target(s_t+1, a)
+        # or if terminal is True
+        # Q_online(s_t, a) = r
+        new_Qvalues = Q_update(current_Qvalues, actions, rewards, self.gamma, next_Qvalues, terms)
         
-        self.model.train_on_batch(pseq, newQ)
+        self.model.train_on_batch(prev_state, new_Qvalues)
         
         # If using a target network, update the weights of the target using the
         # online network's weights.
